@@ -117,7 +117,7 @@ let startX = 0;
 
 slider.addEventListener('touchstart', (e) => {
     startX = e.touches[0].clientX;
-}, {passive: true});
+});
 
 slider.addEventListener('touchend', (e) => {
     let endX = e.changedTouches[0].clientX;
