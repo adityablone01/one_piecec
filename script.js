@@ -9,7 +9,7 @@ const prev = document.getElementById('prev');
 let countItem = items.length;
 let itemActive = 0;
 let autoSlideDelay = 5000;
-let refreshInterval;
+let autoSlideTimer = null;
 
 // ================= PROGRESS BAR =================
 const progressBar = document.createElement('div');
@@ -19,79 +19,72 @@ progressBar.style.left = '0';
 progressBar.style.height = '4px';
 progressBar.style.background = 'white';
 progressBar.style.width = '0%';
-progressBar.style.transition = `width ${autoSlideDelay}ms linear`;
 slider.appendChild(progressBar);
 
 // ================= FUNCTIONS =================
 
-// Lazy load images
+// Lazy load (improved - no flicker)
 function lazyLoad(index){
     const img = items[index].querySelector('img');
-    if(img && !img.getAttribute('src')){
+    if(img && img.dataset.src){
         img.src = img.dataset.src;
+        img.removeAttribute('data-src');
     }
 }
 
 // Show slider
 function showSlider(){
-    const current = document.querySelector('.item.active');
-    const currentThumb = document.querySelector('.thumbnail .item.active');
-
-    if(current) current.classList.remove('active');
-    if(currentThumb) currentThumb.classList.remove('active');
+    document.querySelector('.item.active')?.classList.remove('active');
+    document.querySelector('.thumbnail .item.active')?.classList.remove('active');
 
     items[itemActive].classList.add('active');
     thumbnails[itemActive].classList.add('active');
 
     lazyLoad(itemActive);
     setPositionThumbnail();
-
-    resetAutoSlide();
 }
 
 // Next / Prev
 function nextSlide(){
     itemActive = (itemActive + 1) % countItem;
     showSlider();
+    restartAutoSlide();
 }
 
 function prevSlide(){
     itemActive = (itemActive - 1 + countItem) % countItem;
     showSlider();
+    restartAutoSlide();
 }
 
 // Thumbnail scroll
 function setPositionThumbnail(){
-    const activeThumb = thumbnails[itemActive];
-    const rect = activeThumb.getBoundingClientRect();
-
-    if(rect.left < 0 || rect.right > window.innerWidth){
-        activeThumb.scrollIntoView({ behavior: 'smooth', inline: 'center' });
-    }
+    thumbnails[itemActive].scrollIntoView({
+        behavior: 'smooth',
+        inline: 'center'
+    });
 }
 
-// Auto slide with progress bar
+// ================= AUTO SLIDE =================
+
 function startAutoSlide(){
-    progressBar.style.width = '0%';
+    progressBar.style.transition = `width ${autoSlideDelay}ms linear`;
+    progressBar.style.width = '100%';
 
-    setTimeout(() => {
-        progressBar.style.width = '100%';
-    }, 50);
-
-    refreshInterval = setInterval(nextSlide, autoSlideDelay);
+    autoSlideTimer = setTimeout(() => {
+        nextSlide();
+    }, autoSlideDelay);
 }
 
-function resetAutoSlide(){
-    clearInterval(refreshInterval);
+function restartAutoSlide(){
+    clearTimeout(autoSlideTimer);
+
     progressBar.style.transition = 'none';
     progressBar.style.width = '0%';
 
     setTimeout(() => {
-        progressBar.style.transition = `width ${autoSlideDelay}ms linear`;
-        progressBar.style.width = '100%';
+        startAutoSlide();
     }, 50);
-
-    refreshInterval = setInterval(nextSlide, autoSlideDelay);
 }
 
 // ================= EVENTS =================
@@ -105,20 +98,21 @@ thumbnails.forEach((thumb, index) => {
     thumb.addEventListener('click', () => {
         itemActive = index;
         showSlider();
+        restartAutoSlide();
     });
 });
 
-// Keyboard support
+// Keyboard
 document.addEventListener('keydown', (e) => {
     if(e.key === 'ArrowRight') nextSlide();
     if(e.key === 'ArrowLeft') prevSlide();
 });
 
 // Pause on hover
-slider.addEventListener('mouseenter', () => clearInterval(refreshInterval));
-slider.addEventListener('mouseleave', resetAutoSlide);
+slider.addEventListener('mouseenter', () => clearTimeout(autoSlideTimer));
+slider.addEventListener('mouseleave', restartAutoSlide);
 
-// ================= SWIPE SUPPORT =================
+// ================= SWIPE =================
 let startX = 0;
 
 slider.addEventListener('touchstart', (e) => {
@@ -127,23 +121,25 @@ slider.addEventListener('touchstart', (e) => {
 
 slider.addEventListener('touchend', (e) => {
     let endX = e.changedTouches[0].clientX;
+    let diff = startX - endX;
 
-    if(startX - endX > 50){
-        nextSlide(); // swipe left
-    }
-    else if(endX - startX > 50){
-        prevSlide(); // swipe right
-    }
+    if(diff > 80) nextSlide();      // swipe left
+    else if(diff < -80) prevSlide(); // swipe right
 });
 
 // ================= INIT =================
+
+// Lazy setup (better)
 items.forEach((item, index) => {
     const img = item.querySelector('img');
     if(img){
         img.dataset.src = img.src;
-        if(index !== 0) img.removeAttribute('src');
+        if(index !== 0){
+            img.src = ''; // keep empty but avoids flicker
+        }
     }
 });
 
 lazyLoad(0);
+showSlider();
 startAutoSlide();
